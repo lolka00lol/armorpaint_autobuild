@@ -16,51 +16,67 @@ jobs:
     name: Build on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false # Если одна ОС упадет, остальные продолжат собираться
+      fail-fast: false
       matrix:
-        # Объединяем все три операционные системы
-        os: [windows-latest, ubuntu-latest, macos-latest]
+        include:
+          - os: windows-latest
+            artifact_name: armorpaint-windows
+            build_path: paint/build/build/Release/
+          - os: ubuntu-latest
+            artifact_name: armorpaint-linux
+            build_path: paint/build/build/Release/
+          - os: macos-latest
+            artifact_name: armorpaint-macos
+            build_path: paint/build/build/Release/
 
     steps:
     - uses: actions/checkout@v4
 
-    # --- НАСТРОЙКА ЗАВИСИМОСТЕЙ ДЛЯ LINUX ---
+    # --- ЗАВИСИМОСТИ ДЛЯ LINUX ---
     - name: Install Linux Dependencies
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
         sudo apt install make clang libvulkan-dev libgtk-3-dev libasound2-dev --yes --quiet
 
-    # --- НАСТРОЙКА ЗАВИСИМОСТЕЙ ДЛЯ MACOS (Если нужны) ---
-    # По умолчанию macOS уже идет с установленным clang и make. 
-    # Если вашему движку на Mac нужен Vulkan SDK, раскомментируйте строки ниже:
-    # - name: Install macOS Dependencies
-    #   if: matrix.os == 'macos-latest'
-    #   run: brew install vulkan-loader
-
-    # --- УНИВЕРСАЛЬНЫЙ ШАГ СБОРКИ ---
+    # --- КОМПИЛЯЦИЯ ПРОЕКТА ---
     - name: Compile
       run: |
         cd paint
         ../base/make --compile
 
-    # --- ПОДГОТОВКА АРХИВОВ ДЛЯ РЕЛИЗА (Только при пуше тега) ---
+    # --- НАДЕЖНОЕ АВТО-УПАКОВЫВАНИЕ (БЕЗ ОШИБОК С ПУТЯМИ) ---
     - name: Package Artifacts
       run: |
-        cd paint
-        if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          cd paint/build/build/Release/
-          tar -czf ../../../../../armorpaint-windows.tar.gz ./*
-        elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-          cd paint/build/build/Release/
-          tar -czf ../../../../../armorpaint-linux.tar.gz ./*
-        elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-          cd paint/build/build/Release/
-          tar -czf ../../../../../armorpaint-macos.tar.gz ./*
-        fi
+        # Используем абсолютный путь воркспейса для сохранения архива
+        TARGET_ZIP="${{ github.workspace }}/${{ matrix.artifact_name }}.tar.gz"
+        
+        # Переходим в точную папку билда, которая настроена в матрице сверху
+        cd ${{ matrix.build_path }}
+        
+        # Пакуем всё содержимое этой папки
+        tar -czf "$TARGET_ZIP" ./*
       shell: bash
 
-    # --- АВТОМАТИЧЕСКИЙ РЕЛИЗ НА GITHUB (Только при пуше тега) ---
+    # --- ВРЕМЕННОЕ СОХРАНЕНИЕ НА GITHUB ---
+    - name: Upload temporary artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.artifact_name }}
+        path: ${{ matrix.artifact_name }}.tar.gz
+        retid-days: 1
+
+  # --- ОДИН ШАГ ДЛЯ СОЗДАНИЯ РЕЛИЗА ДЛЯ ВСЕХ СИСТЕМ ОДНОВРЕМЕННО ---
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        merge-multiple: true # Скачает все три архива в одну текущую папку
+
     - name: Upload binaries to release
       uses: svenstaro/upload-release-action@v2
       with:
