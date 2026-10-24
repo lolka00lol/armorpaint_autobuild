@@ -45,36 +45,38 @@ jobs:
         cd paint
         ../base/make --compile
 
-    # --- НАДЕЖНОЕ АВТО-УПАКОВЫВАНИЕ ДЛЯ ВСЕХ ОС ---
+    # --- НАДЕЖНОЕ ПОЛНОЕ УПАКОВЫВАНИЕ ВСЕХ РЕСУРСОВ ---
     - name: Package Artifacts
       run: |
         TARGET_ZIP="${{ github.workspace }}/${{ matrix.artifact_name }}.tar.gz"
         
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          # На Windows рекурсивно ищем скомпилированный ArmorPaint.exe
+          # Находим, где лежит скомпилированный ArmorPaint.exe
           EXE_PATH=$(find . -name "ArmorPaint.exe" -o -name "*.exe" | head -n 1)
           if [ -n "$EXE_PATH" ]; then
+            # Переходим в родительскую папку (это папка Release)
             cd $(dirname "$EXE_PATH")
-            # Флаг --force-local решает проблему с двоеточием в путях на Windows
-            tar --force-local -czf "$TARGET_ZIP" $(basename "$EXE_PATH")
+            # Архивируем ВСЁ содержимое папки (шейдеры, ассеты, dll и сам .exe)
+            tar --force-local -czf "$TARGET_ZIP" ./*
           else
             echo "Error: Windows build artifact not found!" && exit 1
           fi
           
         elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-          # На Mac архивируем Xcode-сборку ArmorPaint.app
+          # На Mac архивируем сгенерированный ArmorPaint.app (он уже содержит ресурсы внутри)
           cd paint/build/build/Release/
           tar -czf "$TARGET_ZIP" ArmorPaint.app
           
         else
-          # На Linux ищем исполняемый файл ArmorPaint
+          # На Linux находим бинарник ArmorPaint
           LINUX_BIN=$(find . -maxdepth 6 -type f -name "ArmorPaint" ! -name "*.c" ! -name "*.h" | head -n 1)
           if [ -n "$LINUX_BIN" ]; then
+            # Переходим в папку с бинарником и забираем все сопутствующие Linux-ресурсы
             cd $(dirname "$LINUX_BIN")
-            tar -czf "$TARGET_ZIP" $(basename "$LINUX_BIN")
+            tar -czf "$TARGET_ZIP" ./*
           else
             cd paint/build/build/Release/ 2>/dev/null || cd paint
-            tar -czf "$TARGET_ZIP" ArmorPaint || echo "Fallback packaging"
+            tar -czf "$TARGET_ZIP" ./*
           fi
         fi
       shell: bash
