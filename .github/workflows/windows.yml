@@ -16,11 +16,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Compile ArmorPaint
+      - name: Check build tools
+        shell: pwsh
+        run: |
+          Write-Host "Checking amake files..."
+          Get-ChildItem base/tools -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match "amake" } |
+            Select-Object FullName, Length
+
+          if (!(Test-Path "base/tools/bin")) {
+            Write-Error "base/tools/bin does not exist"
+            exit 1
+          }
+
+          Get-ChildItem base/tools/bin -Force
+
+          if (!(Test-Path "base/tools/bin/amake.exe") -and
+              !(Test-Path "base/tools/bin/amake")) {
+            Write-Error "amake binary is missing. Build cannot continue."
+            exit 1
+          }
+
+      - name: Generate Visual Studio project
         shell: bash
         run: |
           cd paint
-          ../base/make --compile
+          ../base/make
 
       - name: Verify build output
         shell: pwsh
