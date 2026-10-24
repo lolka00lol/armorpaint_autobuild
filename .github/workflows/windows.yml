@@ -60,6 +60,21 @@ jobs:
             /p:Platform=x64 `
             /verbosity:minimal
 
+      - name: Copy ArmorPaint.exe to output folder
+        shell: pwsh
+        run: |
+          $source = "paint/build/x64/Release/ArmorPaint.exe"
+          $destination = "paint/build/out/ArmorPaint.exe"
+
+          if (!(Test-Path $source)) {
+            throw "EXE not found: $source"
+          }
+
+          New-Item -ItemType Directory -Path "paint/build/out" -Force | Out-Null
+          Copy-Item $source $destination -Force
+
+          Write-Host "Copied ArmorPaint.exe to paint/build/out/"
+
       - name: Verify output
         shell: pwsh
         run: |
@@ -79,6 +94,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ArmorPaint-Windows-out
-          path: paint/build/
+          path: paint/build/out/
           if-no-files-found: error
           retention-days: 14
