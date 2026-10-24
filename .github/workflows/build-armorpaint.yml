@@ -66,19 +66,31 @@ jobs:
         }
 
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          # 1. Находим и копируем исполняемый файл
-          EXE_PATH=$(find paint/build -name "ArmorPaint.exe" | head -n 1)
-          cp "$EXE_PATH" ${{ github.workspace }}/dist_stage/
-          
-          # 2. Копируем рантайм-библиотеки (DLL), если они есть
-          cp paint/build/build/Release/*.dll ${{ github.workspace }}/dist_stage/ 2>/dev/null || true
-          
-          # 3. Ищем и копируем папку data
-          copy_data_folder
-          
-          # Упаковываем всё содержимое вместе
-          cd ${{ github.workspace }}/dist_stage
+          BUILD_DIR="paint/build/build/Release"
+
+          echo "Checking build directory: $BUILD_DIR"
+          ls -lah "$BUILD_DIR"
+
+          if [ ! -f "$BUILD_DIR/ArmorPaint.exe" ]; then
+            echo "ERROR: ArmorPaint.exe not found in $BUILD_DIR"
+            find paint/build -type f -iname "ArmorPaint.exe"
+            exit 1
+          fi
+
+          # Копируем весь каталог Release, а не только EXE и DLL
+          cp -a "$BUILD_DIR/." "$GITHUB_WORKSPACE/dist_stage/"
+
+          echo "Files included in the Windows package:"
+          find "$GITHUB_WORKSPACE/dist_stage" -type f -printf '%P (%s bytes)\n'
+
+          # Проверяем, что EXE действительно попал в пакет
+          test -f "$GITHUB_WORKSPACE/dist_stage/ArmorPaint.exe"
+
+          cd "$GITHUB_WORKSPACE/dist_stage"
           tar --force-local -czf "$TARGET_ZIP" ./*
+
+          echo "Final archive size:"
+          ls -lh "$TARGET_ZIP"
           
         elif [ "${{ matrix.os }}" = "macos-latest" ]; then
           # На Mac ресурсы уже вшиты внутри бандла ArmorPaint.app/Contents/Resources
@@ -113,7 +125,7 @@ jobs:
       with:
         name: ${{ matrix.artifact_name }}
         path: ${{ matrix.artifact_name }}.tar.gz
-        retid-days: 1
+        retention-days: 1
 
   # --- ОДИН ШАГ ДЛЯ СОЗДАНИЯ РЕЛИЗА ДЛЯ ВСЕХ СИСТЕМ ОДНОВРЕМЕННО ---
   release:
