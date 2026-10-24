@@ -45,6 +45,26 @@ jobs:
         cd paint
         ../base/make --compile
 
+    - name: Diagnose Windows build output
+      if: matrix.os == 'windows-latest'
+      shell: bash
+      run: |
+        echo "=== ArmorPaint executables ==="
+        find paint/build -type f \
+          \( -iname "ArmorPaint.exe" -o -iname "*.dll" \) \
+          -printf '%p | %s bytes\n'
+
+        echo "=== Build output directories ==="
+        find paint/build -maxdepth 4 -type d -print
+
+        echo "=== Data directories ==="
+        find paint -type d -name data -not -path '*/.git/*' -print
+
+        echo "=== Runtime dependencies ==="
+        find paint/build -type f \
+          \( -iname "*.dll" -o -iname "*.lib" -o -iname "*.pdb" \) \
+          -printf '%p | %s bytes\n'
+
     # --- СБОРКА ПОЛНОЦЕННЫХ РАБОЧИХ РЕЛИЗОВ С АССЕТАМИ (DATA) ---
     - name: Package Artifacts
       run: |
