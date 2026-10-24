@@ -39,31 +39,36 @@ jobs:
         shell: pwsh
         run: |
           $solutions = @(
-            Get-ChildItem -Path . -Filter "ArmorPaint.sln" -File -Recurse |
-              Where-Object { $_.FullName -notmatch '\\.git\\' }
+            Get-ChildItem -Path . -Recurse -File -Filter "*.sln" |
+              Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]' }
           )
 
           if ($solutions.Count -eq 0) {
-            Write-Host "No ArmorPaint.sln found. Build directory contents:"
-            if (Test-Path "paint/build") {
-              Get-ChildItem "paint/build" -Recurse |
-                Select-Object FullName
-            }
+            Write-Host "No .sln found. Generated files:"
+            Get-ChildItem paint/build -Recurse -File -ErrorAction SilentlyContinue |
+              Select-Object FullName
 
-            Write-Host "All generated solution and project files:"
-            Get-ChildItem -Path . -Recurse -File |
-              Where-Object {
-                $_.Extension -in @(".sln", ".vcxproj", ".props")
-              } |
-              Select-Object -First 100 FullName
+            Write-Host "Other Visual Studio project files:"
+            Get-ChildItem . -Recurse -File -Include "*.vcxproj","*.slnx" |
+              Where-Object { $_.FullName -notmatch '[\\/]\.git[\\/]' } |
+              Select-Object FullName
 
-            throw "ArmorPaint.sln was not generated."
+            throw "No Visual Studio solution found in repository."
           }
 
-          $sln = $solutions[0].FullName
-          Write-Host "Building solution: $sln"
+          $solutions | Select-Object FullName
 
-          msbuild "$sln" `
+          $sln = $solutions |
+            Where-Object { $_.Name -eq "ArmorPaint.sln" } |
+            Select-Object -First 1
+
+          if ($null -eq $sln) {
+            $sln = $solutions[0]
+          }
+
+          Write-Host "Building solution: $($sln.FullName)"
+
+          & msbuild $sln.FullName `
             /m `
             /t:Build `
             /p:Configuration=Release `
