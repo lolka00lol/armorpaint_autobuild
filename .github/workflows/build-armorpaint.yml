@@ -45,39 +45,46 @@ jobs:
         cd paint
         ../base/make --compile
 
-    # --- НАДЕЖНОЕ ПОЛНОЕ УПАКОВЫВАНИЕ ВСЕХ РЕСУРСОВ ---
+    # --- ТОЧНАЯ СБОРКА РЕЛИЗНЫХ АРХИВОВ БЕЗ МУСОРА ---
     - name: Package Artifacts
       run: |
         TARGET_ZIP="${{ github.workspace }}/${{ matrix.artifact_name }}.tar.gz"
         
+        # Создаем чистую временную папку для финального билда
+        mkdir -p ${{ github.workspace }}/dist_stage
+        
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          # Находим, где лежит скомпилированный ArmorPaint.exe
-          EXE_PATH=$(find . -name "ArmorPaint.exe" -o -name "*.exe" | head -n 1)
-          if [ -n "$EXE_PATH" ]; then
-            # Переходим в родительскую папку (это папка Release)
-            cd $(dirname "$EXE_PATH")
-            # Архивируем ВСЁ содержимое папки (шейдеры, ассеты, dll и сам .exe)
-            tar --force-local -czf "$TARGET_ZIP" ./*
-          else
-            echo "Error: Windows build artifact not found!" && exit 1
-          fi
+          # 1. Копируем исполняемый файл из папки билда (ищем точное имя)
+          EXE_PATH=$(find paint/build -name "ArmorPaint.exe" | head -n 1)
+          cp "$EXE_PATH" ${{ github.workspace }}/dist_stage/
+          
+          # 2. Копируем необходимые рантайм-библиотеки Krom/Kha, если они сгенерировались рядом
+          cp paint/build/build/Release/*.dll ${{ github.workspace }}/dist_stage/ 2>/dev/null || true
+          
+          # 3. Копируем папку с ресурсами/шейдерами программы из папки проекта
+          cp -r paint/data ${{ github.workspace }}/dist_stage/ 2>/dev/null || true
+          
+          # Упаковываем чистую папку dist_stage
+          cd ${{ github.workspace }}/dist_stage
+          tar --force-local -czf "$TARGET_ZIP" ./*
           
         elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-          # На Mac архивируем сгенерированный ArmorPaint.app (он уже содержит ресурсы внутри)
+          # На Mac всё уже собрано внутри ArmorPaint.app идеально
           cd paint/build/build/Release/
           tar -czf "$TARGET_ZIP" ArmorPaint.app
           
         else
-          # На Linux находим бинарник ArmorPaint
-          LINUX_BIN=$(find . -maxdepth 6 -type f -name "ArmorPaint" ! -name "*.c" ! -name "*.h" | head -n 1)
-          if [ -n "$LINUX_BIN" ]; then
-            # Переходим в папку с бинарником и забираем все сопутствующие Linux-ресурсы
-            cd $(dirname "$LINUX_BIN")
-            tar -czf "$TARGET_ZIP" ./*
-          else
-            cd paint/build/build/Release/ 2>/dev/null || cd paint
-            tar -czf "$TARGET_ZIP" ./*
-          fi
+          # Linux сборка
+          # 1. Копируем чистый бинарник (не .o и не .d файлы!)
+          LINUX_BIN="paint/build/build/Release/ArmorPaint"
+          cp "$LINUX_BIN" ${{ github.workspace }}/dist_stage/
+          
+          # 2. Копируем папку ресурсов
+          cp -r paint/data ${{ github.workspace }}/dist_stage/ 2>/dev/null || true
+          
+          # Упаковываем чистую папку без мусора компиляции (.o/.d)
+          cd ${{ github.workspace }}/dist_stage
+          tar -czf "$TARGET_ZIP" ./*
         fi
       shell: bash
 
