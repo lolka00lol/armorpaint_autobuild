@@ -1,0 +1,76 @@
+name: Cross-Platform Build & Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*' # Триггер для создания авто-релизов (например, v1.0.0)
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false # Если одна ОС упадет, остальные продолжат собираться
+      matrix:
+        # Объединяем все три операционные системы
+        os: [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # --- НАСТРОЙКА ЗАВИСИМОСТЕЙ ДЛЯ LINUX ---
+    - name: Install Linux Dependencies
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt install make clang libvulkan-dev libgtk-3-dev libasound2-dev --yes --quiet
+
+    # --- НАСТРОЙКА ЗАВИСИМОСТЕЙ ДЛЯ MACOS (Если нужны) ---
+    # По умолчанию macOS уже идет с установленным clang и make. 
+    # Если вашему движку на Mac нужен Vulkan SDK, раскомментируйте строки ниже:
+    # - name: Install macOS Dependencies
+    #   if: matrix.os == 'macos-latest'
+    #   run: brew install vulkan-loader
+
+    # --- УНИВЕРСАЛЬНЫЙ ШАГ СБОРКИ ---
+    - name: Compile
+      run: |
+        cd paint
+        ../base/make --compile
+      shell: bash
+
+    # --- ПОДГОТОВКА АРХИВОВ ДЛЯ РЕЛИЗА (Только при пуше тега) ---
+    - name: Package Artifacts
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        cd paint
+        if [ "${{ matrix.os }}" = "windows-latest" ]; then
+          # Архивируем .exe для Windows (замените myapp.exe на ваше имя файла)
+          tar -czf ../myapp-windows.tar.gz *.exe 
+        elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+          # Архивируем бинарник для Linux (замените myapp на ваше имя файла)
+          tar -czf ../myapp-linux.tar.gz myapp
+        elif [ "${{ matrix.os }}" = "macos-latest" ]; then
+          # Архивируем бинарник для macOS (замените myapp на ваше имя файла)
+          tar -czf ../myapp-macos.tar.gz myapp
+        fi
+      shell: bash
+
+    # --- АВТОМАТИЧЕСКИЙ РЕЛИЗ НА GITHUB (Только при пуше тега) ---
+    - name: Upload binaries to release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: svenstaro/upload-release-action@v2
+      with:
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        file: armorpaint-*.tar.gz
+        tag: ${{ github.ref }}
+        overwrite: true
+        file_glob: true
