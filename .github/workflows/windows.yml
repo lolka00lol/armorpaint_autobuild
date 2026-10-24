@@ -1,4 +1,3 @@
-
 name: ArmorPaint Windows Build
 
 on:
@@ -8,65 +7,71 @@ permissions:
   contents: read
 
 jobs:
-  build-windows:
-    name: Compile ArmorPaint for Windows
+  build:
     runs-on: windows-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Check build tools
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v3
+
+      - name: Prepare build tools
         shell: pwsh
         run: |
-          Write-Host "Checking amake files..."
-          Get-ChildItem base/tools -Recurse -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -match "amake" } |
-            Select-Object FullName, Length
+          $amake = "base/tools/bin/windows_x64/amake.exe"
 
-          if (!(Test-Path "base/tools/bin")) {
-            Write-Error "base/tools/bin does not exist"
-            exit 1
+          if (!(Test-Path $amake)) {
+            throw "Missing $amake"
           }
 
-          Get-ChildItem base/tools/bin -Force
+          Write-Host "Found amake: $amake"
 
-          if (!(Test-Path "base/tools/bin/amake.exe") -and
-              !(Test-Path "base/tools/bin/amake")) {
-            Write-Error "amake binary is missing. Build cannot continue."
-            exit 1
-          }
-
-      - name: Compile ArmorPaint
+      - name: Generate Visual Studio solution
         shell: bash
         run: |
           export IRON_PLATFORM=windows_x64
           cd paint
-          ../base/make --compile
+          ../base/make
 
-      - name: Verify build output
+      - name: Verify solution
         shell: pwsh
         run: |
-          $outDir = "paint/build/out"
+          $sln = "paint/build/ArmorPaint.sln"
 
-          if (!(Test-Path $outDir)) {
-            throw "Build output directory not found: $outDir"
+          if (!(Test-Path $sln)) {
+            Get-ChildItem paint/build -Recurse -ErrorAction SilentlyContinue |
+              Select-Object FullName
+            throw "ArmorPaint.sln was not generated"
           }
 
-          $files = Get-ChildItem $outDir -Recurse -File
-          if ($files.Count -eq 0) {
-            throw "Build output directory is empty."
+      - name: Build solution
+        shell: pwsh
+        run: |
+          msbuild paint/build/ArmorPaint.sln `
+            /m `
+            /t:Build `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /verbosity:minimal
+
+      - name: Verify output
+        shell: pwsh
+        run: |
+          $out = "paint/build/out"
+
+          if (!(Test-Path $out)) {
+            New-Item -ItemType Directory -Path $out -Force | Out-Null
           }
 
-          Write-Host "Output directory: $((Resolve-Path $outDir).Path)"
-          Write-Host "Files found: $($files.Count)"
-          $files | Select-Object FullName, Length | Format-Table -AutoSize
+          Get-ChildItem paint/build -Filter ArmorPaint.exe -Recurse |
+            Select-Object FullName, Length
 
-          if (!(Test-Path "$outDir/ArmorPaint.exe")) {
-            Write-Warning "ArmorPaint.exe is not directly inside out; check the output listing."
-          }
+          Get-ChildItem $out -Recurse -File |
+            Select-Object FullName, Length
 
-      - name: Upload complete build output
+      - name: Upload complete output folder
         uses: actions/upload-artifact@v4
         with:
           name: ArmorPaint-Windows-out
