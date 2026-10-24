@@ -1,0 +1,22 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Запуск каждый час. Можно настроить чаще/реже
+  workflow_dispatch: # Позволяет запустить синхронизацию вручную кнопкой в интерфейсе
+
+jobs:
+  sync:
+    name: Sync latest commits from upstream
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+
+      - name: Sync Upstream
+        uses: aormsby/Fork-Sync-With-Upstream-action@v3.4.1
+        with:
+          target_repo_token: ${{ secrets.GITHUB_TOKEN }}
+          target_branch: main  # Ветка в вашем форке
+          upstream_branch: main # Ветка в оригинальном репозитории armorpaint
+          upstream_repo: armory3d/armorpaint
