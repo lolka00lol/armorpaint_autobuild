@@ -103,7 +103,6 @@ jobs:
         
           echo "=== Archive size ==="
           ls -lh "$TARGET_ZIP"
-        fi
           
         elif [ "${{ matrix.os }}" = "macos-latest" ]; then
           # На Mac ресурсы уже вшиты внутри бандла ArmorPaint.app/Contents/Resources
