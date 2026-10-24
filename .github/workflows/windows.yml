@@ -1,0 +1,53 @@
+
+name: ArmorPaint Windows Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    name: Compile ArmorPaint for Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Compile ArmorPaint
+        shell: bash
+        run: |
+          cd paint
+          ../base/make --compile
+
+      - name: Verify build output
+        shell: pwsh
+        run: |
+          $outDir = "paint/build/out"
+
+          if (!(Test-Path $outDir)) {
+            throw "Build output directory not found: $outDir"
+          }
+
+          $files = Get-ChildItem $outDir -Recurse -File
+          if ($files.Count -eq 0) {
+            throw "Build output directory is empty."
+          }
+
+          Write-Host "Output directory: $((Resolve-Path $outDir).Path)"
+          Write-Host "Files found: $($files.Count)"
+          $files | Select-Object FullName, Length | Format-Table -AutoSize
+
+          if (!(Test-Path "$outDir/ArmorPaint.exe")) {
+            Write-Warning "ArmorPaint.exe is not directly inside out; check the output listing."
+          }
+
+      - name: Upload complete build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: ArmorPaint-Windows-out
+          path: paint/build/out/
+          if-no-files-found: error
+          retention-days: 14
