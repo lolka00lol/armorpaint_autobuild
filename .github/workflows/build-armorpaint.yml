@@ -45,7 +45,7 @@ jobs:
         cd paint
         ../base/make --compile
 
-    # --- ТОЧНАЯ СБОРКА РЕЛИЗНЫХ АРХИВОВ БЕЗ МУСОРА ---
+    # --- СБОРКА ПОЛНОЦЕННЫХ РАБОЧИХ РЕЛИЗОВ С АССЕТАМИ (DATA) ---
     - name: Package Artifacts
       run: |
         TARGET_ZIP="${{ github.workspace }}/${{ matrix.artifact_name }}.tar.gz"
@@ -53,36 +53,55 @@ jobs:
         # Создаем чистую временную папку для финального билда
         mkdir -p ${{ github.workspace }}/dist_stage
         
+        # Функция автоматического поиска и копирования папки data
+        copy_data_folder() {
+          DATA_PATH=$(find ${{ github.workspace }} -type d -name "data" -not -path "*/.git*" -not -path "*/build*" | head -n 1)
+          if [ -n "$DATA_PATH" ]; then
+            echo "Found data folder at: $DATA_PATH"
+            cp -r "$DATA_PATH" "${{ github.workspace }}/dist_stage/"
+          else
+            # Альтернативный поиск, если папка зашита в другом месте
+            cp -r paint/data ${{ github.workspace }}/dist_stage/ 2>/dev/null || true
+          fi
+        }
+
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          # 1. Копируем исполняемый файл из папки билда (ищем точное имя)
+          # 1. Находим и копируем исполняемый файл
           EXE_PATH=$(find paint/build -name "ArmorPaint.exe" | head -n 1)
           cp "$EXE_PATH" ${{ github.workspace }}/dist_stage/
           
-          # 2. Копируем необходимые рантайм-библиотеки Krom/Kha, если они сгенерировались рядом
+          # 2. Копируем рантайм-библиотеки (DLL), если они есть
           cp paint/build/build/Release/*.dll ${{ github.workspace }}/dist_stage/ 2>/dev/null || true
           
-          # 3. Копируем папку с ресурсами/шейдерами программы из папки проекта
-          cp -r paint/data ${{ github.workspace }}/dist_stage/ 2>/dev/null || true
+          # 3. Ищем и копируем папку data
+          copy_data_folder
           
-          # Упаковываем чистую папку dist_stage
+          # Упаковываем всё содержимое вместе
           cd ${{ github.workspace }}/dist_stage
           tar --force-local -czf "$TARGET_ZIP" ./*
           
         elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-          # На Mac всё уже собрано внутри ArmorPaint.app идеально
+          # На Mac ресурсы уже вшиты внутри бандла ArmorPaint.app/Contents/Resources
           cd paint/build/build/Release/
           tar -czf "$TARGET_ZIP" ArmorPaint.app
           
         else
           # Linux сборка
-          # 1. Копируем чистый бинарник (не .o и не .d файлы!)
-          LINUX_BIN="paint/build/build/Release/ArmorPaint"
-          cp "$LINUX_BIN" ${{ github.workspace }}/dist_stage/
+          # 1. Находим и копируем бинарник
+          LINUX_BIN=$(find paint/build -type f -name "ArmorPaint" ! -name "*.c" ! -name "*.h" ! -name "*.d" ! -name "*.o" | head -n 1)
+          if [ -z "$LINUX_BIN" ]; then
+            LINUX_BIN=$(find . -maxdepth 3 -type f -name "ArmorPaint" ! -name "*.c" ! -name "*.h" ! -name "*.d" ! -name "*.o" | head -n 1)
+          fi
           
-          # 2. Копируем папку ресурсов
-          cp -r paint/data ${{ github.workspace }}/dist_stage/ 2>/dev/null || true
+          if [ -n "$LINUX_BIN" ]; then
+            cp "$LINUX_BIN" ${{ github.workspace }}/dist_stage/
+          else
+            echo "Error: Linux build artifact not found!" && exit 1
+          fi
           
-          # Упаковываем чистую папку без мусора компиляции (.o/.d)
+          # 2. Ищем и копируем папку data
+          copy_data_folder
+          
           cd ${{ github.workspace }}/dist_stage
           tar -czf "$TARGET_ZIP" ./*
         fi
