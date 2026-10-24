@@ -48,10 +48,19 @@ jobs:
     # --- СБОРКА ПОЛНОЦЕННЫХ РАБОЧИХ РЕЛИЗОВ С АССЕТАМИ (DATA) ---
     - name: Package Artifacts
       run: |
-        TARGET_ZIP="${{ github.workspace }}/${{ matrix.artifact_name }}.tar.gz"
-        
         # Создаем чистую временную папку для финального билда
         mkdir -p ${{ github.workspace }}/dist_stage
+
+        set -euo pipefail
+
+        TARGET_ZIP="$GITHUB_WORKSPACE/${{ matrix.artifact_name }}.tar.gz"
+        STAGE="$GITHUB_WORKSPACE/dist_stage"
+        
+        rm -rf "$STAGE"
+        mkdir -p "$STAGE"
+        
+        test -d "$STAGE"
+        echo "Staging directory: $STAGE"
         
         # Функция автоматического поиска и копирования папки data
         copy_data_folder() {
@@ -66,43 +75,29 @@ jobs:
         }
 
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          echo "=== Build output files ==="
-          find paint/build -maxdepth 5 -type f \
-            \( -iname "ArmorPaint.exe" -o -iname "*.dll" \) \
-            -printf '%p (%s bytes)\n' | head -200
+          EXE_PATH="paint/build/out/ArmorPaint.exe"
         
-          EXE_PATH="$(find paint/build -type f -iname "ArmorPaint.exe" -print -quit)"
-        
-          if [ -z "$EXE_PATH" ]; then
-            echo "ERROR: ArmorPaint.exe was not found"
-            find paint/build -maxdepth 4 -type d -print
+          if [ ! -f "$EXE_PATH" ]; then
+            echo "ERROR: $EXE_PATH not found"
+            find paint/build -type f -iname "ArmorPaint.exe" -print
             exit 1
           fi
         
           EXE_DIR="$(dirname "$EXE_PATH")"
-          echo "Executable: $EXE_PATH"
-          echo "Executable directory: $EXE_DIR"
         
-          cp "$EXE_PATH" "$GITHUB_WORKSPACE/dist_stage/"
+          cp "$EXE_PATH" "$STAGE/"
         
-          # Копируем DLL, лежащие рядом с EXE
+          # Копируем DLL рядом с исполняемым файлом
           find "$EXE_DIR" -maxdepth 1 -type f -iname "*.dll" \
-            -exec cp -t "$GITHUB_WORKSPACE/dist_stage/" {} +
+            -exec cp -t "$STAGE" {} +
         
-          # Не игнорируем отсутствие ресурсов
-          if [ -d "$EXE_DIR/data" ]; then
-            cp -a "$EXE_DIR/data" "$GITHUB_WORKSPACE/dist_stage/"
-          elif [ -d "paint/data" ]; then
-            cp -a paint/data "$GITHUB_WORKSPACE/dist_stage/"
-          fi
+          echo "=== Staged files ==="
+          find "$STAGE" -type f -printf '%P (%s bytes)\n'
         
-          echo "=== Package contents ==="
-          find "$GITHUB_WORKSPACE/dist_stage" -type f -printf '%P (%s bytes)\n'
-        
-          cd "$GITHUB_WORKSPACE/dist_stage"
+          cd "$STAGE"
           tar --force-local -czf "$TARGET_ZIP" ./*
         
-          echo "=== Archive size ==="
+          echo "=== Archive ==="
           ls -lh "$TARGET_ZIP"
           
         elif [ "${{ matrix.os }}" = "macos-latest" ]; then
