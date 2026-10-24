@@ -35,35 +35,30 @@ jobs:
           cd paint
           ../base/make
 
-      - name: Diagnose generated Visual Studio files
+      - name: Verify generated project
         shell: pwsh
         run: |
-          Write-Host "Workspace: $PWD"
+          $project = "paint/build/ArmorPaint.vcxproj"
+          $solution = "paint/build/ArmorPaint.slnx"
 
-          foreach ($dir in @("paint", "paint/build", "build")) {
-            Write-Host "`n--- $dir ---"
-            if (Test-Path $dir) {
-              Get-ChildItem $dir -Force |
-                Select-Object Name, Mode, Length
-            }
-            else {
-              Write-Host "Directory does not exist"
-            }
+          if (!(Test-Path $project)) {
+            throw "ArmorPaint.vcxproj was not generated"
           }
 
-          Write-Host "`n--- All generated Visual Studio files ---"
-
-          $files = Get-ChildItem -Path $PWD -Recurse -File |
-            Where-Object {
-              $_.Extension -in @(".sln", ".slnx", ".vcxproj")
-            }
-
-          if ($files) {
-            $files | Select-Object FullName, Length
+          if (!(Test-Path $solution)) {
+            throw "ArmorPaint.slnx was not generated"
           }
-          else {
-            Write-Host "No .sln, .slnx or .vcxproj files found."
-          }
+
+          Write-Host "Visual Studio project files found."
+
+      - name: Build ArmorPaint
+        shell: pwsh
+        run: |
+          msbuild paint/build/ArmorPaint.vcxproj `
+            /m `
+            /p:Configuration=Release `
+            /p:Platform=x64 `
+            /verbosity:minimal
 
       - name: Verify output
         shell: pwsh
