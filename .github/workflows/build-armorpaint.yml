@@ -52,14 +52,11 @@ jobs:
       run: |
         cd paint
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          # Архивируем .exe для Windows (замените myapp.exe на ваше имя файла)
-          tar -czf ../myapp-windows.tar.gz *.exe 
+          tar -czf ../armorpaint-windows.tar.gz *.exe 
         elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-          # Архивируем бинарник для Linux (замените myapp на ваше имя файла)
-          tar -czf ../myapp-linux.tar.gz myapp
+          tar -czf ../armorpaint-linux.tar.gz armorpaint
         elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-          # Архивируем бинарник для macOS (замените myapp на ваше имя файла)
-          tar -czf ../myapp-macos.tar.gz myapp
+          tar -czf ../armorpaint-macos.tar.gz armorpaint
         fi
       shell: bash
 
