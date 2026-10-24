@@ -45,7 +45,6 @@ jobs:
       run: |
         cd paint
         ../base/make --compile
-      shell: bash
 
     # --- ПОДГОТОВКА АРХИВОВ ДЛЯ РЕЛИЗА (Только при пуше тега) ---
     - name: Package Artifacts
