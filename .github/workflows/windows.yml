@@ -35,26 +35,44 @@ jobs:
           cd paint
           ../base/make
 
-      - name: Verify solution
+      - name: Find and build ArmorPaint solution
         shell: pwsh
         run: |
-          $sln = "paint/build/ArmorPaint.sln"
+          $solutions = @(
+            Get-ChildItem -Path . -Filter "ArmorPaint.sln" -File -Recurse |
+              Where-Object { $_.FullName -notmatch '\\.git\\' }
+          )
 
-          if (!(Test-Path $sln)) {
-            Get-ChildItem paint/build -Recurse -ErrorAction SilentlyContinue |
-              Select-Object FullName
-            throw "ArmorPaint.sln was not generated"
+          if ($solutions.Count -eq 0) {
+            Write-Host "No ArmorPaint.sln found. Build directory contents:"
+            if (Test-Path "paint/build") {
+              Get-ChildItem "paint/build" -Recurse |
+                Select-Object FullName
+            }
+
+            Write-Host "All generated solution and project files:"
+            Get-ChildItem -Path . -Recurse -File |
+              Where-Object {
+                $_.Extension -in @(".sln", ".vcxproj", ".props")
+              } |
+              Select-Object -First 100 FullName
+
+            throw "ArmorPaint.sln was not generated."
           }
 
-      - name: Build solution
-        shell: pwsh
-        run: |
-          msbuild paint/build/ArmorPaint.sln `
+          $sln = $solutions[0].FullName
+          Write-Host "Building solution: $sln"
+
+          msbuild "$sln" `
             /m `
             /t:Build `
             /p:Configuration=Release `
             /p:Platform=x64 `
             /verbosity:minimal
+
+          if ($LASTEXITCODE -ne 0) {
+            throw "MSBuild failed with exit code $LASTEXITCODE"
+          }
 
       - name: Verify output
         shell: pwsh
