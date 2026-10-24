@@ -51,33 +51,33 @@ jobs:
         TARGET_ZIP="${{ github.workspace }}/${{ matrix.artifact_name }}.tar.gz"
         
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          # На Windows ищем ArmorPaint.exe или любой .exe рекурсивно и пакуем его
+          # На Windows рекурсивно ищем скомпилированный ArmorPaint.exe
           EXE_PATH=$(find . -name "ArmorPaint.exe" -o -name "*.exe" | head -n 1)
           if [ -n "$EXE_PATH" ]; then
             cd $(dirname "$EXE_PATH")
-            tar -czf "$TARGET_ZIP" $(basename "$EXE_PATH")
+            # Флаг --force-local решает проблему с двоеточием в путях на Windows
+            tar --force-local -czf "$TARGET_ZIP" $(basename "$EXE_PATH")
           else
             echo "Error: Windows build artifact not found!" && exit 1
           fi
           
         elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-          # На Mac заходим в точный путь из логов и пакуем ArmorPaint.app
+          # На Mac архивируем Xcode-сборку ArmorPaint.app
           cd paint/build/build/Release/
           tar -czf "$TARGET_ZIP" ArmorPaint.app
           
         else
-          # На Linux ищем исполняемый файл ArmorPaint рекурсивно
+          # На Linux ищем исполняемый файл ArmorPaint
           LINUX_BIN=$(find . -maxdepth 6 -type f -name "ArmorPaint" ! -name "*.c" ! -name "*.h" | head -n 1)
           if [ -n "$LINUX_BIN" ]; then
             cd $(dirname "$LINUX_BIN")
             tar -czf "$TARGET_ZIP" $(basename "$LINUX_BIN")
           else
-            # Если бинарник лежит в корне сборки Release
             cd paint/build/build/Release/ 2>/dev/null || cd paint
             tar -czf "$TARGET_ZIP" ArmorPaint || echo "Fallback packaging"
           fi
         fi
-      shell: bash # Bash гарантирует работу утилит find и tar на всех ОС, включая Windows
+      shell: bash
 
     # --- ВРЕМЕННОЕ СОХРАНЕНИЕ НА GITHUB ---
     - name: Upload temporary artifact
