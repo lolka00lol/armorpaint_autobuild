@@ -60,7 +60,6 @@ jobs:
 
     # --- АВТОМАТИЧЕСКИЙ РЕЛИЗ НА GITHUB (Только при пуше тега) ---
     - name: Upload binaries to release
-      if: startsWith(github.ref, 'refs/tags/')
       uses: svenstaro/upload-release-action@v2
       with:
         repo_token: ${{ secrets.GITHUB_TOKEN }}
