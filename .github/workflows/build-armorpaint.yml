@@ -66,30 +66,43 @@ jobs:
         }
 
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          BUILD_DIR="paint/build/build/Release"
-
-          echo "Checking build directory: $BUILD_DIR"
-          ls -lah "$BUILD_DIR"
-
-          if [ ! -f "$BUILD_DIR/ArmorPaint.exe" ]; then
-            echo "ERROR: ArmorPaint.exe not found in $BUILD_DIR"
-            find paint/build -type f -iname "ArmorPaint.exe"
+          echo "=== Build output files ==="
+          find paint/build -maxdepth 5 -type f \
+            \( -iname "ArmorPaint.exe" -o -iname "*.dll" \) \
+            -printf '%p (%s bytes)\n' | head -200
+        
+          EXE_PATH="$(find paint/build -type f -iname "ArmorPaint.exe" -print -quit)"
+        
+          if [ -z "$EXE_PATH" ]; then
+            echo "ERROR: ArmorPaint.exe was not found"
+            find paint/build -maxdepth 4 -type d -print
             exit 1
           fi
-
-          # Копируем весь каталог Release, а не только EXE и DLL
-          cp -a "$BUILD_DIR/." "$GITHUB_WORKSPACE/dist_stage/"
-
-          echo "Files included in the Windows package:"
+        
+          EXE_DIR="$(dirname "$EXE_PATH")"
+          echo "Executable: $EXE_PATH"
+          echo "Executable directory: $EXE_DIR"
+        
+          cp "$EXE_PATH" "$GITHUB_WORKSPACE/dist_stage/"
+        
+          # Копируем DLL, лежащие рядом с EXE
+          find "$EXE_DIR" -maxdepth 1 -type f -iname "*.dll" \
+            -exec cp -t "$GITHUB_WORKSPACE/dist_stage/" {} +
+        
+          # Не игнорируем отсутствие ресурсов
+          if [ -d "$EXE_DIR/data" ]; then
+            cp -a "$EXE_DIR/data" "$GITHUB_WORKSPACE/dist_stage/"
+          elif [ -d "paint/data" ]; then
+            cp -a paint/data "$GITHUB_WORKSPACE/dist_stage/"
+          fi
+        
+          echo "=== Package contents ==="
           find "$GITHUB_WORKSPACE/dist_stage" -type f -printf '%P (%s bytes)\n'
-
-          # Проверяем, что EXE действительно попал в пакет
-          test -f "$GITHUB_WORKSPACE/dist_stage/ArmorPaint.exe"
-
+        
           cd "$GITHUB_WORKSPACE/dist_stage"
           tar --force-local -czf "$TARGET_ZIP" ./*
-
-          echo "Final archive size:"
+        
+          echo "=== Archive size ==="
           ls -lh "$TARGET_ZIP"
           
         elif [ "${{ matrix.os }}" = "macos-latest" ]; then
