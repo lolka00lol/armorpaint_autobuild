@@ -45,26 +45,6 @@ jobs:
         cd paint
         ../base/make --compile
 
-    - name: Diagnose Windows build output
-      if: matrix.os == 'windows-latest'
-      shell: bash
-      run: |
-        echo "=== ArmorPaint executables ==="
-        find paint/build -type f \
-          \( -iname "ArmorPaint.exe" -o -iname "*.dll" \) \
-          -printf '%p | %s bytes\n'
-
-        echo "=== Build output directories ==="
-        find paint/build -maxdepth 4 -type d -print
-
-        echo "=== Data directories ==="
-        find paint -type d -name data -not -path '*/.git/*' -print
-
-        echo "=== Runtime dependencies ==="
-        find paint/build -type f \
-          \( -iname "*.dll" -o -iname "*.lib" -o -iname "*.pdb" \) \
-          -printf '%p | %s bytes\n'
-
     # --- СБОРКА ПОЛНОЦЕННЫХ РАБОЧИХ РЕЛИЗОВ С АССЕТАМИ (DATA) ---
     - name: Package Artifacts
       run: |
@@ -95,30 +75,35 @@ jobs:
         }
 
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          EXE_PATH="paint/build/out/ArmorPaint.exe"
+          set -euo pipefail
         
-          if [ ! -f "$EXE_PATH" ]; then
-            echo "ERROR: $EXE_PATH not found"
-            find paint/build -type f -iname "ArmorPaint.exe" -print
+          EXE_DIR="paint/build/out"
+          STAGE="$GITHUB_WORKSPACE/dist_stage"
+        
+          test -f "$EXE_DIR/ArmorPaint.exe" || {
+            echo "ERROR: ArmorPaint.exe not found in $EXE_DIR"
             exit 1
-          fi
+          }
         
-          EXE_DIR="$(dirname "$EXE_PATH")"
+          test -d "$EXE_DIR/data" || {
+            echo "ERROR: Required data directory not found in $EXE_DIR"
+            exit 1
+          }
         
-          cp "$EXE_PATH" "$STAGE/"
+          mkdir -p "$STAGE"
         
-          # Копируем DLL рядом с исполняемым файлом
-          find "$EXE_DIR" -maxdepth 1 -type f -iname "*.dll" \
-            -exec cp -t "$STAGE" {} +
+          cp "$EXE_DIR/ArmorPaint.exe" "$STAGE/"
+          cp -a "$EXE_DIR/data" "$STAGE/"
         
-          echo "=== Staged files ==="
+          echo "=== Package contents ==="
           find "$STAGE" -type f -printf '%P (%s bytes)\n'
         
-          cd "$STAGE"
-          tar --force-local -czf "$TARGET_ZIP" ./*
+          echo "=== Create archive ==="
+          tar --force-local -czf "$TARGET_ZIP" -C "$STAGE" .
         
-          echo "=== Archive ==="
+          echo "=== Archive size ==="
           ls -lh "$TARGET_ZIP"
+        fi
           
         elif [ "${{ matrix.os }}" = "macos-latest" ]; then
           # На Mac ресурсы уже вшиты внутри бандла ArmorPaint.app/Contents/Resources
