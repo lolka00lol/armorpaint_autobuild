@@ -37,11 +37,12 @@ jobs:
             exit 1
           }
 
-      - name: Generate Visual Studio project
+      - name: Compile ArmorPaint
         shell: bash
         run: |
+          export IRON_PLATFORM=windows_x64
           cd paint
-          ../base/make
+          ../base/make --compile
 
       - name: Verify build output
         shell: pwsh
