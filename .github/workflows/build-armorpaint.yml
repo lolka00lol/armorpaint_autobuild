@@ -49,11 +49,14 @@ jobs:
       run: |
         cd paint
         if [ "${{ matrix.os }}" = "windows-latest" ]; then
-          tar -czf ../armorpaint-windows.tar.gz *.exe 
+          cd paint/build/build/Release/
+          tar -czf ../../../../../armorpaint-windows.tar.gz ./*
         elif [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-          tar -czf ../armorpaint-linux.tar.gz armorpaint
+          cd paint/build/build/Release/
+          tar -czf ../../../../../armorpaint-linux.tar.gz ./*
         elif [ "${{ matrix.os }}" = "macos-latest" ]; then
-          tar -czf ../armorpaint-macos.tar.gz armorpaint
+          cd paint/build/build/Release/
+          tar -czf ../../../../../armorpaint-macos.tar.gz ./*
         fi
       shell: bash
 
